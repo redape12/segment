@@ -1,0 +1,62 @@
+UPDATE segment_aa1_balance
+SET segment = CASE 
+  -- VIP Клиенты: идеальные по всем параметрам
+  WHEN split_balance = 'high' AND split_ltv = 'high' AND split_tariff = 'high' 
+    THEN 'VIP Клиенты'
+  
+  -- Перспективные: хороший баланс, могут расти
+  WHEN split_balance = 'high' AND split_ltv IN ('high', 'low') AND split_tariff IN ('high', 'middle', 'low')
+       AND split_ltv != 'middle'
+    THEN 'Перспективные'
+  
+  -- Надёжные: стабильные, средние показатели
+  WHEN split_balance = 'high' AND split_ltv = 'middle'
+    THEN 'Надёжные'
+  
+  -- Требующие внимания: стабильные, но мало тратят
+  WHEN split_balance = 'high' AND split_ltv = 'low' AND split_tariff IN ('middle', 'low')
+    THEN 'Требующие внимания'
+  
+  -- Ценные с риском: хорошие траты, но средняя надёжность
+  WHEN split_balance = 'middle' AND split_ltv = 'high'
+    THEN 'Ценные с риском'
+  
+  -- Стандартные: средние по всем параметрам
+  WHEN split_balance = 'middle' AND split_ltv = 'middle' AND split_tariff = 'middle'
+    THEN 'Стандартные'
+  
+  -- Проблемные: плохие показатели
+  WHEN split_balance IN ('middle', 'low') AND split_ltv = 'low'
+       AND NOT (split_balance = 'low' AND split_ltv = 'low')
+    THEN 'Проблемные'
+  
+  -- Нестабильные VIP: много тратят, но ненадёжны
+  WHEN split_balance = 'low' AND split_ltv = 'high' AND split_tariff IN ('high', 'middle')
+    THEN 'Нестабильные VIP'
+  
+  -- Рисковые активные: активные, но с рисками
+  WHEN split_balance = 'low' AND split_ltv = 'high' AND split_tariff = 'low'
+    THEN 'Рисковые активные'
+  
+  -- Критические: максимальный риск
+  WHEN split_balance = 'low' AND split_ltv = 'low'
+    THEN 'Критические'
+  
+  ELSE 'Прочие'
+END;
+
+-- 3. Обновляем рекомендации
+UPDATE segment_aa1_balance
+SET recommendation = CASE 
+  WHEN segment = 'VIP Клиенты' THEN 'Персональный сервис, эксклюзивные предложения'
+  WHEN segment = 'Перспективные' THEN 'Активная коммуникация, предложение доп. услуг'
+  WHEN segment = 'Надёжные' THEN 'Стандартное обслуживание, периодические акции'
+  WHEN segment = 'Требующие внимания' THEN 'Стимулирование активности, напоминания'
+  WHEN segment = 'Ценные с риском' THEN 'Контроль баланса, уведомления об оплате'
+  WHEN segment = 'Стандартные' THEN 'Базовая поддержка, массовые рассылки'
+  WHEN segment = 'Проблемные' THEN 'Контроль оттока, специальные условия'
+  WHEN segment = 'Нестабильные VIP' THEN 'Автооплата, премиальная поддержка'
+  WHEN segment = 'Рисковые активные' THEN 'Уведомления о балансе, гибкие условия'
+  WHEN segment = 'Критические' THEN 'Срочные меры по удержанию, персональный контакт'
+  ELSE 'Базовое обслуживание'
+END;
