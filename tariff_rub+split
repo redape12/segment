@@ -1,0 +1,55 @@
+-- 1. Очищаем существующие значения (опционально, если хотите полную перезапись)
+UPDATE AlexeyReport.tariff_rub SET split = NULL;
+
+-- 2. Обновляем rub_numeric на случай, если добавились новые записи
+UPDATE AlexeyReport.tariff_rub 
+SET rub_numeric = 
+    CASE 
+        WHEN rub IS NULL OR TRIM(rub) = '' THEN NULL
+        ELSE CAST(
+            REPLACE(TRIM(rub), UNHEX('C2A0'), '') AS DECIMAL(10,2)
+        )
+    END
+WHERE rub_numeric IS NULL OR rub != rub; -- обновляем если NULL или если rub изменился
+
+-- 3. Создаем временную таблицу с расчетами
+CREATE TEMPORARY TABLE IF NOT EXISTS temp_split_calculation AS
+SELECT 
+    ID,
+    CUME_DIST() OVER (PARTITION BY city, serv ORDER BY rub_numeric) AS cume_dist,
+    COUNT(*) OVER (PARTITION BY city, serv) as group_size
+FROM AlexeyReport.tariff_rub 
+WHERE rub_numeric IS NOT NULL;
+
+-- 4. Обновляем split (полная перезапись)
+UPDATE AlexeyReport.tariff_rub AS t
+LEFT JOIN temp_split_calculation AS s ON t.ID = s.ID
+SET t.split = 
+    CASE 
+        WHEN s.group_size >= 3 THEN
+            CASE 
+                WHEN s.cume_dist <= 1.0/3 THEN 'low'
+                WHEN s.cume_dist <= 2.0/3 THEN 'middle'
+                ELSE 'high'
+            END
+        WHEN s.group_size IS NOT NULL THEN 'middle'  -- для групп с 1-2 записями
+        ELSE NULL  -- для записей с rub_numeric = NULL
+    END;
+
+-- 5. Очищаем временную таблицу
+DROP TEMPORARY TABLE IF EXISTS temp_split_calculation;
+
+-- 6. Проверочный запрос (опционально)
+SELECT 
+    split,
+    COUNT(*) as total_tariffs,
+    ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM AlexeyReport.tariff_rub WHERE split IS NOT NULL), 1) as percentage
+FROM AlexeyReport.tariff_rub 
+WHERE split IS NOT NULL
+GROUP BY split
+ORDER BY 
+    CASE split 
+        WHEN 'low' THEN 1
+        WHEN 'middle' THEN 2
+        WHEN 'high' THEN 3
+    END;
