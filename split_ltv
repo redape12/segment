@@ -1,0 +1,21 @@
+UPDATE segment_aa1_balance AS t
+JOIN (
+  SELECT 
+    title,
+    CASE NTILE(3) OVER (
+      PARTITION BY 
+        CASE 
+          WHEN serv IN ('Телефония', 'КТВ') THEN 'group1'
+          WHEN serv IN ('Интернет', 'Пакет', 'ОТТ') THEN 'group2'
+        END
+      ORDER BY ltv_total DESC  -- DESC чтобы high был у максимальных
+    )
+      WHEN 1 THEN 'high'      -- первая треть: максимальные ltv_total
+      WHEN 2 THEN 'middle'
+      WHEN 3 THEN 'low'       -- последняя треть: минимальные ltv_total
+    END AS calculated_split
+  FROM segment_aa1_balance
+  WHERE serv IN ('Телефония', 'КТВ', 'Интернет', 'Пакет', 'ОТТ')
+) AS s ON t.title = s.title
+SET t.split_ltv = s.calculated_split
+WHERE t.serv IN ('Телефония', 'КТВ', 'Интернет', 'Пакет', 'ОТТ');
