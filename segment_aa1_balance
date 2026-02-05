@@ -1,0 +1,56 @@
+-- Удаляем старую таблицу, если существует
+DROP TABLE IF EXISTS segment_aa1_balance;
+
+-- Создаем новую таблицу одним запросом
+CREATE TABLE segment_aa1_balance AS
+WITH current_abonents AS (
+    SELECT DISTINCT
+        title AS abonent_id,
+        SUBSTRING(fio, 1, 500) AS fio,
+        gorod,
+        SUBSTRING(tariff, 1, 500) AS tariff,
+        SUBSTRING(serv, 1, 500) AS serv,
+        nach AS ltv_total,
+        datedog,
+        GREATEST(datedog, '2025-04-17') AS calc_start_date,
+        DATEDIFF(CURDATE(), GREATEST(datedog, '2025-04-17')) AS days_total
+    FROM aa1
+    WHERE DATE(update_at) = CURDATE()
+        AND title LIKE '2%'
+),
+negative_days AS (
+    SELECT 
+        a.title AS abonent_id,
+        COUNT(DISTINCT DATE(a.update_at)) AS days_negative
+    FROM aa1 a
+    INNER JOIN current_abonents ca ON a.title = ca.abonent_id
+    WHERE a.summa <= 15
+    GROUP BY a.title
+)
+SELECT 
+    ca.abonent_id AS title,
+    ca.fio,
+    CASE 
+        WHEN ca.gorod = 'Верх-Нейвинск' THEN 'Верх-Нейвинский'
+        ELSE ca.gorod 
+    END AS city,
+    ca.tariff,
+    ca.serv,
+    ca.datedog,
+    CURDATE() AS calc_end_date,
+    ca.calc_start_date AS used_start_date,
+    ca.days_total,
+    COALESCE(nd.days_negative, 0) AS days_negative,
+    CASE 
+        WHEN ca.days_total > 0 
+        THEN ROUND(COALESCE(nd.days_negative, 0) / ca.days_total, 4)
+        ELSE 0 
+    END AS negative_ratio,
+    ca.ltv_total
+FROM current_abonents ca
+LEFT JOIN negative_days nd ON ca.abonent_id = nd.abonent_id
+ORDER BY city, ca.abonent_id;
+
+-- Добавляем индексы
+ALTER TABLE segment_aa1_balance ADD INDEX idx_title (title);
+ALTER TABLE segment_aa1_balance ADD INDEX idx_city (city);
