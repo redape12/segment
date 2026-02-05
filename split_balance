@@ -1,0 +1,31 @@
+JOIN (
+  -- Подзапрос для расчета split_balance
+  SELECT title,
+    CASE 
+      WHEN rnk <= CEIL(group_count * 1.0 / 3) THEN 'low'
+      WHEN rnk <= CEIL(group_count * 1.0 / 3) + FLOOR(group_count * 1.0 / 3) THEN 'middle'
+      ELSE 'high'
+    END AS calculated_split
+  FROM (
+    SELECT title,
+      ROW_NUMBER() OVER (
+        PARTITION BY 
+          CASE 
+            WHEN serv IN ('Телефония', 'КТВ') THEN 'group1'
+            WHEN serv IN ('Интернет', 'Пакет', 'ОТТ') THEN 'group2'
+          END
+        ORDER BY negative_ratio DESC, title
+      ) AS rnk,
+      COUNT(*) OVER (
+        PARTITION BY 
+          CASE 
+            WHEN serv IN ('Телефония', 'КТВ') THEN 'group1'
+            WHEN serv IN ('Интернет', 'Пакет', 'ОТТ') THEN 'group2'
+          END
+      ) AS group_count
+    FROM segment_aa1_balance
+    WHERE serv IN ('Телефония', 'КТВ', 'Интернет', 'Пакет', 'ОТТ')
+  ) AS ranked
+) AS s ON t.title = s.title
+SET t.split_balance = s.calculated_split
+WHERE t.serv IN ('Телефония', 'КТВ', 'Интернет', 'Пакет', 'ОТТ');
