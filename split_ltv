@@ -1,21 +1,38 @@
+-- 1. Создаем столбец split_ltv
+ALTER TABLE segment_aa1_balance 
+ADD COLUMN split_ltv VARCHAR(20) DEFAULT NULL 
+COMMENT 'Категория LTV: low/middle/high'
+AFTER split_balance;
+
+-- 2. Наполняем столбец данными
 UPDATE segment_aa1_balance AS t
 JOIN (
   SELECT 
     title,
+    month,
+    year,
     CASE NTILE(3) OVER (
       PARTITION BY 
         CASE 
           WHEN serv IN ('Телефония', 'КТВ') THEN 'group1'
           WHEN serv IN ('Интернет', 'Пакет', 'ОТТ') THEN 'group2'
-        END
-      ORDER BY ltv_total DESC  -- DESC чтобы high был у максимальных
+        END,
+        month,
+        year
+      ORDER BY lifetime DESC  -- чем больше lifetime, тем выше категория
     )
-      WHEN 1 THEN 'high'      -- первая треть: максимальные ltv_total
+      WHEN 1 THEN 'high'      -- первая треть: максимальные lifetime
       WHEN 2 THEN 'middle'
-      WHEN 3 THEN 'low'       -- последняя треть: минимальные ltv_total
+      WHEN 3 THEN 'low'       -- последняя треть: минимальные lifetime
     END AS calculated_split
   FROM segment_aa1_balance
   WHERE serv IN ('Телефония', 'КТВ', 'Интернет', 'Пакет', 'ОТТ')
-) AS s ON t.title = s.title
+    AND month IS NOT NULL 
+    AND year IS NOT NULL
+    AND lifetime IS NOT NULL
+) AS s ON t.title = s.title AND t.month = s.month AND t.year = s.year
 SET t.split_ltv = s.calculated_split
-WHERE t.serv IN ('Телефония', 'КТВ', 'Интернет', 'Пакет', 'ОТТ');
+WHERE t.serv IN ('Телефония', 'КТВ', 'Интернет', 'Пакет', 'ОТТ')
+  AND t.month IS NOT NULL 
+  AND t.year IS NOT NULL
+  AND t.lifetime IS NOT NULL;
