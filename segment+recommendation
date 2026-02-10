@@ -1,3 +1,17 @@
+-- 1. Добавляем новые столбцы
+ALTER TABLE segment_aa1_balance 
+ADD COLUMN segment VARCHAR(50) DEFAULT NULL 
+COMMENT 'Сегмент клиента';
+
+ALTER TABLE segment_aa1_balance 
+ADD COLUMN segment_score INT DEFAULT 0 
+COMMENT 'Числовая оценка сегмента (1-10, где 1 - лучший)';
+
+ALTER TABLE segment_aa1_balance 
+ADD COLUMN recommendation VARCHAR(255) DEFAULT NULL 
+COMMENT 'Рекомендация по работе с клиентом';
+
+-- 2. Обновляем сегменты
 UPDATE segment_aa1_balance
 SET segment = CASE 
   -- VIP Клиенты: идеальные по всем параметрам
@@ -45,7 +59,24 @@ SET segment = CASE
   ELSE 'Прочие'
 END;
 
--- 3. Обновляем рекомендации
+-- 3. Обновляем числовые оценки сегментов (1 - лучший, 10 - худший)
+UPDATE segment_aa1_balance
+SET segment_score = CASE 
+  WHEN segment = 'VIP Клиенты' THEN 1
+  WHEN segment = 'Перспективные' THEN 2
+  WHEN segment = 'Надёжные' THEN 3
+  WHEN segment = 'Ценные с риском' THEN 4
+  WHEN segment = 'Стандартные' THEN 5
+  WHEN segment = 'Требующие внимания' THEN 6
+  WHEN segment = 'Нестабильные VIP' THEN 7
+  WHEN segment = 'Рисковые активные' THEN 8
+  WHEN segment = 'Проблемные' THEN 9
+  WHEN segment = 'Критические' THEN 10
+  WHEN segment = 'Прочие' THEN 11
+  ELSE 12
+END;
+
+-- 4. Обновляем рекомендации
 UPDATE segment_aa1_balance
 SET recommendation = CASE 
   WHEN segment = 'VIP Клиенты' THEN 'Персональный сервис, эксклюзивные предложения'
