@@ -1,0 +1,49 @@
+-- 1. Добавляем столбцы в segment_aa1_balance
+ALTER TABLE segment_aa1_balance 
+ADD COLUMN split_tariff VARCHAR(20) DEFAULT NULL 
+COMMENT 'Категория тарифа из tariff_rub: low/middle/high';
+
+ALTER TABLE segment_aa1_balance 
+ADD COLUMN tariff_rub DECIMAL(10,2) DEFAULT NULL 
+COMMENT 'Стоимость тарифа из tariff_rub.rub';
+
+-- 2. Вариант 1: Берем последние значения из tariff_rub (без учета даты)
+UPDATE segment_aa1_balance AS s
+LEFT JOIN (
+    -- Берем последние значения для каждого тарифа
+    SELECT 
+        tariff,
+        split,
+        CAST(
+            REPLACE(TRIM(rub), UNHEX('C2A0'), '') AS DECIMAL(10,2)
+        ) AS rub_numeric
+    FROM AlexeyReport.tariff_rub 
+    WHERE (tariff, ID) IN (
+        -- Предполагаем, что ID автоинкрементный и больше = новее
+        SELECT tariff, MAX(ID)
+        FROM AlexeyReport.tariff_rub
+        GROUP BY tariff
+    )
+) AS tr ON s.tariff = tr.tariff
+SET 
+    s.split_tariff = tr.split,
+    s.tariff_rub = tr.rub_numeric
+WHERE s.tariff IS NOT NULL;
+
+-- ИЛИ Вариант 2: Если в tariff_rub есть дата (например, update_date)
+UPDATE segment_aa1_balance AS s
+LEFT JOIN AlexeyReport.tariff_rub AS tr ON 
+    s.tariff = tr.tariff 
+    -- Если в tariff_rub есть столбец с датой, например 'update_date'
+    -- AND MONTH(s.calc_end_date) = MONTH(tr.update_date)
+    -- AND YEAR(s.calc_end_date) = YEAR(tr.update_date)
+SET 
+    s.split_tariff = tr.split,
+    s.tariff_rub = 
+        CASE 
+            WHEN tr.rub IS NULL OR TRIM(tr.rub) = '' THEN NULL
+            ELSE CAST(
+                REPLACE(TRIM(tr.rub), UNHEX('C2A0'), '') AS DECIMAL(10,2)
+            )
+        END
+WHERE s.tariff IS NOT NULL;
