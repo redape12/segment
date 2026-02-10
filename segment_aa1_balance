@@ -10,10 +10,12 @@ WITH current_abonents AS (
         gorod,
         SUBSTRING(tariff, 1, 500) AS tariff,
         SUBSTRING(serv, 1, 500) AS serv,
-        nach AS ltv_total,
+        dney AS lifetime,  -- ВМЕСТО nach ИСПОЛЬЗУЕМ dney
         datedog,
         GREATEST(datedog, '2025-04-17') AS calc_start_date,
-        DATEDIFF(CURDATE(), GREATEST(datedog, '2025-04-17')) AS days_total
+        DATEDIFF(CURDATE(), GREATEST(datedog, '2025-04-17')) AS days_total,
+        MONTH(update_at) AS month,  -- ДОБАВЛЯЕМ МЕСЯЦ
+        YEAR(update_at) AS year     -- ДОБАВЛЯЕМ ГОД
     FROM aa1
     WHERE DATE(update_at) = CURDATE()
         AND title LIKE '2%'
@@ -46,7 +48,9 @@ SELECT
         THEN ROUND(COALESCE(nd.days_negative, 0) / ca.days_total, 4)
         ELSE 0 
     END AS negative_ratio,
-    ca.ltv_total
+    ca.lifetime,  -- ВМЕСТО ltv_total ТЕПЕРЬ ЭТО lifetime
+    ca.month,     -- НОВЫЙ СТОЛБЕЦ
+    ca.year       -- НОВЫЙ СТОЛБЕЦ
 FROM current_abonents ca
 LEFT JOIN negative_days nd ON ca.abonent_id = nd.abonent_id
 ORDER BY city, ca.abonent_id;
@@ -54,3 +58,4 @@ ORDER BY city, ca.abonent_id;
 -- Добавляем индексы
 ALTER TABLE segment_aa1_balance ADD INDEX idx_title (title);
 ALTER TABLE segment_aa1_balance ADD INDEX idx_city (city);
+ALTER TABLE segment_aa1_balance ADD INDEX idx_month_year (month, year);  -- ДОПОЛНИТЕЛЬНЫЙ ИНДЕКС
