@@ -1,0 +1,69 @@
+-- 2. Обновляем таблицу значениями
+UPDATE AlexeyReport.segment_aa1_balance AS feb
+LEFT JOIN AlexeyReport.segment_aa1_balance_nov25 AS nov 
+    ON feb.title = nov.title
+SET 
+    -- Новые значения за ноябрь для сравнения
+    feb.nov_score = nov.segment_score,
+    feb.nov_balance = nov.split_balance,
+    feb.nov_ltv = nov.split_ltv,
+    feb.nov_tariff = nov.split_tariff,
+    
+    -- Изменение segment_score
+    feb.segment_score_change = CASE 
+        WHEN nov.title IS NULL THEN 'new'
+        WHEN feb.segment_score < nov.segment_score THEN 'up'
+        WHEN feb.segment_score > nov.segment_score THEN 'drop'
+        ELSE 'stable'
+    END,
+    
+    -- Изменение split_balance
+    feb.split_balance_change = CASE 
+        WHEN nov.title IS NULL THEN 'new'
+        WHEN feb.split_balance = nov.split_balance THEN 'stable'
+        WHEN (feb.split_balance = 'high' AND nov.split_balance IN ('middle', 'low'))
+            OR (feb.split_balance = 'middle' AND nov.split_balance = 'low')
+            THEN 'up'
+        ELSE 'drop'
+    END,
+    
+    -- Изменение split_ltv
+    feb.split_ltv_change = CASE 
+        WHEN nov.title IS NULL THEN 'new'
+        WHEN feb.split_ltv = nov.split_ltv THEN 'stable'
+        WHEN (feb.split_ltv = 'high' AND nov.split_ltv IN ('middle', 'low'))
+            OR (feb.split_ltv = 'middle' AND nov.split_ltv = 'low')
+            THEN 'up'
+        ELSE 'drop'
+    END,
+    
+    -- Изменение split_tariff
+    feb.split_tariff_change = CASE 
+        WHEN nov.title IS NULL THEN 'new'
+        WHEN feb.split_tariff = nov.split_tariff THEN 'stable'
+        WHEN (feb.split_tariff = 'high' AND nov.split_tariff IN ('middle', 'low'))
+            OR (feb.split_tariff = 'middle' AND nov.split_tariff = 'low')
+            THEN 'up'
+        ELSE 'drop'
+    END
+WHERE feb.month = 2 AND feb.year = 2026;
+
+-- 3. Проверяем результат (первые 20 записей)
+SELECT 
+    title,
+    fio,
+    segment_score_change,
+    split_balance_change,
+    split_ltv_change,
+    split_tariff_change,
+    segment_score AS feb_score,
+    nov_score,
+    split_balance AS feb_balance,
+    nov_balance,
+    split_ltv AS feb_ltv,
+    nov_ltv,
+    split_tariff AS feb_tariff,
+    nov_tariff
+FROM AlexeyReport.segment_aa1_balance
+WHERE month = 2 AND year = 2026
+LIMIT 20;
